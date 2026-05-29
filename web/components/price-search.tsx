@@ -154,43 +154,74 @@ export function PriceSearch() {
 
   async function onSubmit(event?: FormEvent) {
     event?.preventDefault();
-    if (!item.trim()) return;
-    setLoading(true);
-    setProgress(18);
-    const timer = window.setInterval(() => {
-      setProgress((value) => Math.min(value + 18, 92));
-    }, 140);
-    const next = await findPriceRangeFromApi(item.trim());
-    window.clearInterval(timer);
-    setProgress(100);
-    setResult(next);
-    setHistory(addSearchHistory(next));
-    setLoading(false);
-    window.setTimeout(() => setProgress(0), 420);
-    notifications.show({
-      title: "Price range found",
-      message: `Found cheapest and most expensive matches for ${item.trim()}.`,
-      color: "lime",
-      icon: <IconShieldCheck size={18} />
-    });
+    await runSearch(item);
+  }
+
+  async function writeClipboard(value: string, successTitle: string, successMessage: string) {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard API is unavailable on this browser.");
+      }
+      await navigator.clipboard.writeText(value);
+      notifications.show({ title: successTitle, message: successMessage, color: "lime", icon: <IconCopy size={18} /> });
+    } catch (error) {
+      notifications.show({
+        title: "Copy failed",
+        message: error instanceof Error ? error.message : "Your browser blocked clipboard access.",
+        color: "yellow",
+        icon: <IconShieldCheck size={18} />
+      });
+    }
   }
 
   async function copySummary() {
     if (!summaryText) return;
-    await navigator.clipboard.writeText(summaryText);
-    notifications.show({ title: "Copied", message: "Price summary copied.", color: "lime", icon: <IconCopy size={18} /> });
+    await writeClipboard(summaryText, "Copied", "Price summary copied.");
   }
 
   async function copyShareLink() {
     const url = new URL(window.location.href);
     url.searchParams.set("q", result?.itemName || item);
-    await navigator.clipboard.writeText(url.toString());
-    notifications.show({ title: "Share link copied", message: "Anyone can reopen this search query.", color: "lime", icon: <IconLink size={18} /> });
+    await writeClipboard(url.toString(), "Share link copied", "Anyone can reopen this search query.");
+  }
+
+  async function runSearch(nextItem = item) {
+    const cleanItem = nextItem.trim();
+    if (!cleanItem) return;
+    setLoading(true);
+    setProgress(18);
+    const timer = window.setInterval(() => {
+      setProgress((value) => Math.min(value + 18, 92));
+    }, 140);
+
+    try {
+      const next = await findPriceRangeFromApi(cleanItem);
+      setProgress(100);
+      setResult(next);
+      setHistory(addSearchHistory(next));
+      notifications.show({
+        title: "Price range found",
+        message: `Found cheapest and most expensive matches for ${cleanItem}.`,
+        color: "lime",
+        icon: <IconShieldCheck size={18} />
+      });
+    } catch (error) {
+      notifications.show({
+        title: "Search failed",
+        message: error instanceof Error ? error.message : "Could not complete this search.",
+        color: "red",
+        icon: <IconShieldCheck size={18} />
+      });
+    } finally {
+      window.clearInterval(timer);
+      setLoading(false);
+      window.setTimeout(() => setProgress(0), 420);
+    }
   }
 
   function pickItem(nextItem: string) {
     setItem(nextItem);
-    window.setTimeout(() => void onSubmit(), 0);
+    void runSearch(nextItem);
   }
 
   return (
