@@ -2,30 +2,52 @@
 
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
   Card,
   Collapse,
   Container,
+  Divider,
   Group,
   Loader,
   Paper,
   Progress,
   RingProgress,
+  SegmentedControl,
   SimpleGrid,
   Skeleton,
   Stack,
+  Tabs,
   Text,
   TextInput,
   ThemeIcon,
   Tooltip
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { IconChevronDown, IconClock, IconCopy, IconExternalLink, IconSearch, IconShieldCheck, IconSparkles, IconTrendingDown, IconTrendingUp } from "@tabler/icons-react";
-import { FormEvent, useState } from "react";
+import {
+  IconBell,
+  IconChevronDown,
+  IconClock,
+  IconCopy,
+  IconExternalLink,
+  IconHistory,
+  IconLink,
+  IconSearch,
+  IconShieldCheck,
+  IconSparkles,
+  IconTrendingDown,
+  IconTrendingUp
+} from "@tabler/icons-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { PriceRangeResult } from "@/lib/mock-price";
-import { findPriceRangeFromApi } from "@/lib/price-api";
+import { EnrichedPriceRangeResult, findPriceRangeFromApi } from "@/lib/price-api";
+import { addSearchHistory, readSearchHistory, SearchHistoryItem } from "@/lib/search-history";
+
+const popularItems = ["wireless mouse", "A4 file", "bluetooth speaker", "iPhone charger", "rice cooker", "gaming mouse"];
+const storeFilters = ["All stores", "Daraz", "Singer", "SimplyTek", "Abans", "Redline"];
+const categoryFilters = ["All categories", "Tech", "Office", "Home", "Mobile"];
 
 function money(value: number) {
   return new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", maximumFractionDigits: 0 }).format(value);
@@ -80,21 +102,58 @@ function PriceCard({ label, icon, result, tone }: { label: string; icon: React.R
           <Text size="xs" c="dimmed" tt="uppercase" fw={800}>Proof</Text>
           <Text size="sm" mt={6}>Source URL: {result.url}</Text>
           <Text size="sm" c="dimmed">{result.matchReason}. Last checked {result.lastChecked}.</Text>
-          <Text size="sm" c="dimmed">Confidence is based on item-token overlap in the current MVP. Real adapters will add stronger validation.</Text>
+          <Text size="sm" c="dimmed">Confidence is based on item-token overlap plus adapter metadata in the current MVP.</Text>
         </Paper>
       </Collapse>
     </Card>
   );
 }
 
+function HistoryPanel({ history, onPick }: { history: SearchHistoryItem[]; onPick: (item: string) => void }) {
+  if (history.length === 0) {
+    return <Text size="sm" c="dimmed">No recent hunts yet. Search once and this panel stops looking unemployed.</Text>;
+  }
+
+  return (
+    <Stack gap="sm">
+      {history.map((entry) => (
+        <Paper key={entry.id} p="md" radius="xl" className="mini-panel" onClick={() => onPick(entry.itemName)}>
+          <Group justify="space-between" align="center">
+            <Box>
+              <Text fw={850} c="white">{entry.itemName}</Text>
+              <Text size="xs" c="dimmed">{entry.cheapestSite} to {entry.mostExpensiveSite} • {entry.sourceCount} sources • {entry.checkedAt}</Text>
+            </Box>
+            <Box ta="right">
+              <Text size="sm" fw={900} c="lime">{money(entry.cheapestPrice)}</Text>
+              <Text size="xs" c="orange">{money(entry.mostExpensivePrice)}</Text>
+            </Box>
+          </Group>
+        </Paper>
+      ))}
+    </Stack>
+  );
+}
+
 export function PriceSearch() {
   const [item, setItem] = useState("wireless mouse");
-  const [result, setResult] = useState<PriceRangeResult | null>(null);
+  const [result, setResult] = useState<EnrichedPriceRangeResult | null>(null);
+  const [history, setHistory] = useState<SearchHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [store, setStore] = useState("All stores");
+  const [category, setCategory] = useState("All categories");
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
+  useEffect(() => {
+    setHistory(readSearchHistory());
+  }, []);
+
+  const summaryText = useMemo(() => {
+    if (!result) return "";
+    return `${result.itemName}\nCheapest: ${result.cheapest.siteName} ${money(result.cheapest.price)}\nMost expensive: ${result.mostExpensive.siteName} ${money(result.mostExpensive.price)}\nSpread: ${result.spreadPercent}%\nTrust: ${Math.round(result.trustScore * 100)}%`;
+  }, [result]);
+
+  async function onSubmit(event?: FormEvent) {
+    event?.preventDefault();
     if (!item.trim()) return;
     setLoading(true);
     setProgress(18);
@@ -105,6 +164,7 @@ export function PriceSearch() {
     window.clearInterval(timer);
     setProgress(100);
     setResult(next);
+    setHistory(addSearchHistory(next));
     setLoading(false);
     window.setTimeout(() => setProgress(0), 420);
     notifications.show({
@@ -116,10 +176,21 @@ export function PriceSearch() {
   }
 
   async function copySummary() {
-    if (!result) return;
-    const text = `${result.itemName}\nCheapest: ${result.cheapest.siteName} ${money(result.cheapest.price)}\nMost expensive: ${result.mostExpensive.siteName} ${money(result.mostExpensive.price)}`;
-    await navigator.clipboard.writeText(text);
+    if (!summaryText) return;
+    await navigator.clipboard.writeText(summaryText);
     notifications.show({ title: "Copied", message: "Price summary copied.", color: "lime", icon: <IconCopy size={18} /> });
+  }
+
+  async function copyShareLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("q", result?.itemName || item);
+    await navigator.clipboard.writeText(url.toString());
+    notifications.show({ title: "Share link copied", message: "Anyone can reopen this search query.", color: "lime", icon: <IconLink size={18} /> });
+  }
+
+  function pickItem(nextItem: string) {
+    setItem(nextItem);
+    window.setTimeout(() => void onSubmit(), 0);
   }
 
   return (
@@ -147,9 +218,49 @@ export function PriceSearch() {
 
       <Group mt="md" gap="sm">
         <Badge size="lg" radius="xl" variant="light" color="lime" leftSection={<IconShieldCheck size={14} />}>Shows extremes only</Badge>
-        <Badge size="lg" radius="xl" variant="outline" color="gray">Smooth Mantine UI</Badge>
+        <Badge size="lg" radius="xl" variant="outline" color="gray">History and share links</Badge>
         <Badge size="lg" radius="xl" variant="outline" color="gray">Sri Lanka focused</Badge>
       </Group>
+
+      <Tabs defaultValue="popular" variant="pills" radius="xl" mt="xl" classNames={{ panel: "phase-tabs-panel" }}>
+        <Tabs.List>
+          <Tabs.Tab value="popular" leftSection={<IconSparkles size={16} />}>Popular</Tabs.Tab>
+          <Tabs.Tab value="filters" leftSection={<IconShieldCheck size={16} />}>Filters</Tabs.Tab>
+          <Tabs.Tab value="history" leftSection={<IconHistory size={16} />}>History</Tabs.Tab>
+          <Tabs.Tab value="alerts" leftSection={<IconBell size={16} />}>Alerts</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="popular" pt="md">
+          <Group gap="sm">
+            {popularItems.map((popular) => (
+              <Button key={popular} radius="xl" variant="light" color="gray" onClick={() => pickItem(popular)}>{popular}</Button>
+            ))}
+          </Group>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="filters" pt="md">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            <Paper p="md" radius="xl" className="mini-panel">
+              <Text size="xs" tt="uppercase" fw={900} c="dimmed" mb="xs">Store filter placeholder</Text>
+              <SegmentedControl fullWidth value={store} onChange={setStore} data={storeFilters} />
+            </Paper>
+            <Paper p="md" radius="xl" className="mini-panel">
+              <Text size="xs" tt="uppercase" fw={900} c="dimmed" mb="xs">Category filter placeholder</Text>
+              <SegmentedControl fullWidth value={category} onChange={setCategory} data={categoryFilters} />
+            </Paper>
+          </SimpleGrid>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="history" pt="md">
+          <HistoryPanel history={history} onPick={pickItem} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="alerts" pt="md">
+          <Alert color="lime" radius="xl" icon={<IconBell size={18} />} className="mini-panel">
+            Price alerts are staged for the production phase. The UI is ready for target price tracking once background jobs and user accounts land.
+          </Alert>
+        </Tabs.Panel>
+      </Tabs>
 
       {loading && (
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt={40}>
@@ -169,15 +280,67 @@ export function PriceSearch() {
               <Badge size="xl" radius="xl" variant="light" color={result.status === "matched" ? "lime" : "yellow"}>{result.status === "matched" ? "Matched" : "Demo fallback"}</Badge>
               <Badge size="xl" radius="xl" variant="light" color="gray">{result.sourceCount} sources scanned</Badge>
               <Badge size="xl" radius="xl" variant="outline" color="gray" leftSection={<IconClock size={14} />}>{result.checkedAt}</Badge>
-              <ActionIcon size="xl" radius="xl" variant="light" color="lime" onClick={copySummary}>
+              <ActionIcon size="xl" radius="xl" variant="light" color="lime" onClick={copySummary} aria-label="Copy summary">
                 <IconCopy size={20} />
+              </ActionIcon>
+              <ActionIcon size="xl" radius="xl" variant="light" color="gray" onClick={copyShareLink} aria-label="Copy share link">
+                <IconLink size={20} />
               </ActionIcon>
             </Group>
           </Group>
+
+          <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mb="lg">
+            <Paper p="lg" radius="xl" className="mini-panel">
+              <Text size="xs" tt="uppercase" c="dimmed" fw={900}>Trust score</Text>
+              <Text size="32px" fw={950} c="lime">{Math.round(result.trustScore * 100)}%</Text>
+              <Text size="xs" c="dimmed">Confidence plus source coverage minus warnings.</Text>
+            </Paper>
+            <Paper p="lg" radius="xl" className="mini-panel">
+              <Text size="xs" tt="uppercase" c="dimmed" fw={900}>Price spread</Text>
+              <Text size="32px" fw={950} c="orange">{result.spreadPercent}%</Text>
+              <Text size="xs" c="dimmed">How much higher the expensive match is than the cheapest.</Text>
+            </Paper>
+            <Paper p="lg" radius="xl" className="mini-panel">
+              <Text size="xs" tt="uppercase" c="dimmed" fw={900}>Candidates</Text>
+              <Text size="32px" fw={950} c="white">{result.candidateCount}</Text>
+              <Text size="xs" c="dimmed">Adapter candidates after dedupe and filtering.</Text>
+            </Paper>
+          </SimpleGrid>
+
+          {result.warnings.length > 0 && (
+            <Alert mb="lg" color="yellow" radius="xl" className="mini-panel">
+              {result.warnings.join(" ")}
+            </Alert>
+          )}
+
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
             <PriceCard label="Cheapest found" icon={<IconTrendingDown size={21} />} result={result.cheapest} tone="cheap" />
             <PriceCard label="Most expensive" icon={<IconTrendingUp size={21} />} result={result.mostExpensive} tone="high" />
           </SimpleGrid>
+
+          {result.sources.length > 0 && (
+            <Paper mt="lg" p="lg" radius="32px" className="mini-panel">
+              <Group justify="space-between" mb="md">
+                <Box>
+                  <Text size="xs" tt="uppercase" c="dimmed" fw={900}>Source health</Text>
+                  <Text fw={900} c="white">Live adapter readiness</Text>
+                </Box>
+                <Badge radius="xl" variant="light" color={result.apiMode === "api" ? "lime" : "gray"}>{result.apiMode === "api" ? "API" : "Demo"}</Badge>
+              </Group>
+              <Divider mb="md" opacity={0.18} />
+              <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                {result.sources.map((source) => (
+                  <Group key={source.name} justify="space-between" className="source-row">
+                    <Box>
+                      <Text size="sm" fw={850} c="white">{source.siteName}</Text>
+                      <Text size="xs" c="dimmed">{source.ok ? "Healthy" : source.error || "Failed"}</Text>
+                    </Box>
+                    <Badge radius="xl" color={source.ok ? "lime" : "red"}>{source.candidates} candidates</Badge>
+                  </Group>
+                ))}
+              </SimpleGrid>
+            </Paper>
+          )}
         </Box>
       )}
     </Container>

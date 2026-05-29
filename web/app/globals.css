@@ -121,3 +121,20 @@ body {
 .phase-strip {
   animation: fadeInUp 420ms ease both;
 }
+
+.phase-tabs-panel {
+  min-height: 72px;
+}
+
+.mini-panel {
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  background: rgba(255,255,255,0.045) !important;
+  backdrop-filter: blur(18px);
+}
+
+.source-row {
+  border: 1px solid rgba(255,255,255,0.075);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.14);
+}
