@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
+from typing import Protocol
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
@@ -46,6 +47,13 @@ class SourceSearchResult:
     ok: bool = True
     error: str | None = None
     elapsed_ms: int = 0
+
+
+class RawSearchProvider(Protocol):
+    meta: SourceMeta
+
+    def search_raw(self, item: ResearchItem, limit: int = 10) -> list[RawListing]:
+        ...
 
 
 class PriceAdapter(ABC):
@@ -233,6 +241,33 @@ class SimpleHTMLListingParser(HTMLParser):
             if text:
                 href = urljoin(self.base_url, self.current_href or "") if self.current_href else None
                 self.links.append((text, href))
+
+
+class AdapterRunner:
+    def __init__(self, provider: RawSearchProvider) -> None:
+        self.provider = provider
+        self.meta = provider.meta
+
+    def search(self, item: ResearchItem, limit: int = 10) -> SourceSearchResult:
+        started = perf_counter()
+        try:
+            raw_listings = self.provider.search_raw(item, limit=limit)
+            candidates = [normalize_listing(item, listing) for listing in raw_listings]
+            candidates = [candidate for candidate in candidates if candidate.price >= 0]
+            candidates.sort(key=lambda candidate: (-candidate.confidence, candidate.price, candidate.vendor))
+            return SourceSearchResult(
+                source=self.meta,
+                candidates=candidates[:limit],
+                ok=True,
+                elapsed_ms=int((perf_counter() - started) * 1000),
+            )
+        except Exception as exc:  # pragma: no cover - defensive adapter boundary
+            return SourceSearchResult(
+                source=self.meta,
+                ok=False,
+                error=str(exc),
+                elapsed_ms=int((perf_counter() - started) * 1000),
+            )
 
 
 class HTMLPageAdapter(PriceAdapter):

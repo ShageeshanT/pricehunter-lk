@@ -31,6 +31,6 @@ def research_sheets_rows(request: ResearchRequest) -> dict[str, list[list[object
 
 @app.post("/price-range", response_model=PriceRangeResponse)
 def price_range(request: PriceRangeRequest) -> PriceRangeResponse:
-    finder = PriceRangeFinder()
+    finder = PriceRangeFinder(live=request.live)
     result = finder.find_range(request.item_name, max_candidates=request.max_candidates)
     return PriceRangeResponse(result=result)

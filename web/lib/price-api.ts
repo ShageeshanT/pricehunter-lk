@@ -46,7 +46,7 @@ export async function findPriceRangeFromApi(itemName: string): Promise<PriceRang
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/price-range`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_name: itemName, max_candidates: 20 }),
+    body: JSON.stringify({ item_name: itemName, max_candidates: 20, live: process.env.NEXT_PUBLIC_ENABLE_LIVE_SCRAPING === "true" }),
     cache: "no-store"
   });
 

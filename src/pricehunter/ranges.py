@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from .adapters import PriceAdapter, SourceSearchResult, dedupe_candidates
+from .adapters import AdapterRunner, PriceAdapter, SourceSearchResult, dedupe_candidates
 from .models import PriceCandidate, ResearchItem
 from .source_registry import default_adapters
 from .sources import PriceSource
@@ -42,6 +42,7 @@ class PriceRangeResult(BaseModel):
 class PriceRangeRequest(BaseModel):
     item_name: str = Field(min_length=1)
     max_candidates: int = Field(default=20, ge=1, le=50)
+    live: bool = False
 
 
 class PriceRangeResponse(BaseModel):
@@ -72,8 +73,8 @@ def _to_source_health(result: SourceSearchResult) -> SourceHealth:
 
 
 class PriceRangeFinder:
-    def __init__(self, sources: list[PriceAdapter | PriceSource] | None = None) -> None:
-        self.sources = sources or default_adapters()
+    def __init__(self, sources: list[PriceAdapter | AdapterRunner | PriceSource] | None = None, live: bool = False) -> None:
+        self.sources = sources or default_adapters(include_live_scrapers=live)
 
     def find_range(self, item_name: str, max_candidates: int = 20) -> PriceRangeResult:
         item = ResearchItem(name=item_name, quantity=1)
@@ -82,7 +83,7 @@ class PriceRangeFinder:
         warnings: list[str] = []
 
         for source in self.sources:
-            if isinstance(source, PriceAdapter):
+            if isinstance(source, PriceAdapter | AdapterRunner):
                 result = source.search(item, limit=max_candidates)
                 health.append(_to_source_health(result))
                 candidates.extend(result.candidates)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .adapters import FixtureAdapter, PriceAdapter, SearchUrlAdapter
+from .adapters import AdapterRunner, FixtureAdapter, PriceAdapter, SearchUrlAdapter
+from .scraping import ConfigurableScrapeAdapter, default_scrape_configs
 
 DARAZ_FIXTURES = [
     {"title": "Wireless Mouse 2.4GHz Silent Click", "price": "Rs. 1,450", "url": "https://www.daraz.lk/catalog/?q=wireless+mouse", "availability": "in stock"},
@@ -24,18 +25,30 @@ HOME_FIXTURES = [
 ]
 
 
-def default_adapters(include_search_handoffs: bool = False) -> list[PriceAdapter]:
-    adapters: list[PriceAdapter] = [
+def fixture_adapters() -> list[PriceAdapter]:
+    return [
         FixtureAdapter("daraz-fixture", "Daraz LK", DARAZ_FIXTURES),
         FixtureAdapter("tech-retail-fixture", "Sri Lankan Tech Retailers", TECH_FIXTURES),
         FixtureAdapter("home-office-fixture", "Home and Office Stores", HOME_FIXTURES),
     ]
+
+
+def search_handoff_adapters() -> list[PriceAdapter]:
+    return [
+        SearchUrlAdapter("daraz-search", "Daraz LK", "https://www.daraz.lk/catalog/?q={query}"),
+        SearchUrlAdapter("singer-search", "Singer", "https://www.singer.lk/catalogsearch/result/?q={query}"),
+        SearchUrlAdapter("google-shopping-handoff", "Web Search", "https://www.google.com/search?q={query}+price+Sri+Lanka"),
+    ]
+
+
+def live_scrape_adapters() -> list[AdapterRunner]:
+    return [AdapterRunner(ConfigurableScrapeAdapter(config)) for config in default_scrape_configs()]
+
+
+def default_adapters(include_search_handoffs: bool = False, include_live_scrapers: bool = False) -> list[PriceAdapter | AdapterRunner]:
+    adapters: list[PriceAdapter | AdapterRunner] = fixture_adapters()
+    if include_live_scrapers:
+        adapters.extend(live_scrape_adapters())
     if include_search_handoffs:
-        adapters.extend(
-            [
-                SearchUrlAdapter("daraz-search", "Daraz LK", "https://www.daraz.lk/catalog/?q={query}"),
-                SearchUrlAdapter("singer-search", "Singer", "https://www.singer.lk/catalogsearch/result/?q={query}"),
-                SearchUrlAdapter("google-shopping-handoff", "Web Search", "https://www.google.com/search?q={query}+price+Sri+Lanka"),
-            ]
-        )
+        adapters.extend(search_handoff_adapters())
     return adapters
