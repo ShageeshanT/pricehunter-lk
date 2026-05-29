@@ -69,3 +69,16 @@ Sample output total for the included Young Protege-style list: LKR 157500.
 ## Phased roadmap
 
 See `PROJECT_PLAN.md` for the end-of-day build phases.
+
+
+## Frontend
+
+The polished web UI lives in `web/` and uses Next.js, Tailwind, Mantine UI, Mantine notifications, and Tabler icons.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+The UI currently uses deterministic mock results while the backend source adapters are upgraded to real ecommerce/search adapters.

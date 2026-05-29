@@ -7,3 +7,6 @@ out/
 dist/
 build/
 *.egg-info/
+web/node_modules/
+web/.next/
+web/out/
