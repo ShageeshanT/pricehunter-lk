@@ -1,2 +1,51 @@
-# pricehunter-lk
-Sri Lankan price research assistant that turns item lists into sourced vendor comparisons and Google Sheets-ready budgets.
+# PriceHunter LK
+
+Sri Lankan price research assistant for event budgets, procurement lists, and student club planning.
+
+PriceHunter LK takes an item list such as files, pens, wrist bands, plaques, stickers, refreshments, or OC tags, finds matching price candidates from configured sources, ranks them, and exports a clean budget comparison.
+
+## MVP status
+
+Active build. The current model is local-first and deterministic so it can be tested reliably before live vendor search is added.
+
+## Planned workflow
+
+```bash
+pricehunter examples/young_protege_items.txt --csv out/budget.csv --json out/report.json
+```
+
+## API preview
+
+```bash
+uvicorn pricehunter.api:app --reload
+```
+
+Then POST to `/research` with:
+
+```json
+{
+  "items": [
+    {"name": "A4 file", "quantity": 100},
+    {"name": "blue pen", "quantity": 100}
+  ]
+}
+```
+
+## Why this exists
+
+Manual price research is slow, messy, and weirdly good at eating entire nights. This tool is meant to turn that chaos into a spreadsheet before the spreadsheet starts demanding blood sacrifice.
+
+
+## Current MVP command
+
+```bash
+python -m pip install -e ".[dev]"
+pytest
+pricehunter examples/young_protege_items.txt --csv out/budget.csv --json out/report.json
+```
+
+Sample output total for the included Young Protege-style list: LKR 157500.
+
+## Phased roadmap
+
+See `PROJECT_PLAN.md` for the end-of-day build phases.
