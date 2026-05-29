@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from difflib import SequenceMatcher
 
+from .adapters import relevance_score
 from .models import PriceCandidate, ResearchItem
 
 
@@ -27,21 +27,13 @@ _FIXTURE_PRODUCTS = [
 ]
 
 
-def _score(query: str, title: str, keywords: list[str]) -> float:
-    query_tokens = set(query.lower().replace("-", " ").split())
-    keyword_tokens = set(keywords)
-    overlap = len(query_tokens & keyword_tokens) / max(len(query_tokens), 1)
-    title_ratio = SequenceMatcher(None, query.lower(), title.lower()).ratio()
-    return round(min(1.0, overlap * 0.7 + title_ratio * 0.3), 3)
-
-
 class FixturePriceSource(PriceSource):
     name = "fixture"
 
     def search(self, item: ResearchItem, limit: int = 5) -> list[PriceCandidate]:
         candidates: list[PriceCandidate] = []
         for product in _FIXTURE_PRODUCTS:
-            confidence = _score(item.name, product["title"], product["keywords"])
+            confidence = relevance_score(item.name, product["title"])
             if confidence < 0.18:
                 continue
             candidates.append(

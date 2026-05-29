@@ -4,8 +4,10 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from .adapters import PriceAdapter, SourceSearchResult, dedupe_candidates
 from .models import PriceCandidate, ResearchItem
-from .sources import FixturePriceSource, PriceSource
+from .source_registry import default_adapters
+from .sources import PriceSource
 
 
 class PriceExtreme(BaseModel):
@@ -14,6 +16,17 @@ class PriceExtreme(BaseModel):
     url: str | None = None
     title: str
     confidence: float = Field(ge=0, le=1)
+    availability: str | None = None
+    source_name: str | None = None
+
+
+class SourceHealth(BaseModel):
+    name: str
+    site_name: str
+    ok: bool
+    candidates: int = 0
+    elapsed_ms: int = 0
+    error: str | None = None
 
 
 class PriceRangeResult(BaseModel):
@@ -21,6 +34,8 @@ class PriceRangeResult(BaseModel):
     cheapest: PriceExtreme | None = None
     most_expensive: PriceExtreme | None = None
     source_count: int = 0
+    candidate_count: int = 0
+    sources: list[SourceHealth] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -40,25 +55,60 @@ def _to_extreme(candidate: PriceCandidate) -> PriceExtreme:
         url=candidate.url,
         title=candidate.title,
         confidence=candidate.confidence,
+        availability=candidate.availability,
+        source_name=str(candidate.raw.get("source", "")) or None,
+    )
+
+
+def _to_source_health(result: SourceSearchResult) -> SourceHealth:
+    return SourceHealth(
+        name=result.source.name,
+        site_name=result.source.site_name,
+        ok=result.ok,
+        candidates=len(result.candidates),
+        elapsed_ms=result.elapsed_ms,
+        error=result.error,
     )
 
 
 class PriceRangeFinder:
-    def __init__(self, sources: list[PriceSource] | None = None) -> None:
-        self.sources = sources or [FixturePriceSource()]
+    def __init__(self, sources: list[PriceAdapter | PriceSource] | None = None) -> None:
+        self.sources = sources or default_adapters()
 
     def find_range(self, item_name: str, max_candidates: int = 20) -> PriceRangeResult:
         item = ResearchItem(name=item_name, quantity=1)
         candidates: list[PriceCandidate] = []
-        for source in self.sources:
-            candidates.extend(source.search(item, limit=max_candidates))
+        health: list[SourceHealth] = []
+        warnings: list[str] = []
 
-        candidates = [candidate for candidate in candidates if candidate.confidence >= 0.18]
+        for source in self.sources:
+            if isinstance(source, PriceAdapter):
+                result = source.search(item, limit=max_candidates)
+                health.append(_to_source_health(result))
+                candidates.extend(result.candidates)
+                if not result.ok:
+                    warnings.append(f"{result.source.site_name} failed: {result.error}")
+                continue
+
+            source_candidates = source.search(item, limit=max_candidates)
+            candidates.extend(source_candidates)
+            health.append(
+                SourceHealth(
+                    name=getattr(source, "name", source.__class__.__name__),
+                    site_name=getattr(source, "name", source.__class__.__name__),
+                    ok=True,
+                    candidates=len(source_candidates),
+                )
+            )
+
+        candidates = dedupe_candidates([candidate for candidate in candidates if candidate.confidence >= 0.18 and candidate.price > 0])
         if not candidates:
             return PriceRangeResult(
                 item_name=item.name,
-                source_count=0,
-                warnings=["No matching prices found from configured sources."],
+                source_count=len(health),
+                candidate_count=0,
+                sources=health,
+                warnings=warnings + ["No matching prices found from configured sources."],
             )
 
         cheapest = min(candidates, key=lambda candidate: candidate.price)
@@ -67,5 +117,8 @@ class PriceRangeFinder:
             item_name=item.name,
             cheapest=_to_extreme(cheapest),
             most_expensive=_to_extreme(most_expensive),
-            source_count=len(candidates),
+            source_count=len([source for source in health if source.ok]),
+            candidate_count=len(candidates),
+            sources=health,
+            warnings=warnings,
         )

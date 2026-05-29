@@ -24,7 +24,8 @@ import {
 import { notifications } from "@mantine/notifications";
 import { IconChevronDown, IconClock, IconCopy, IconExternalLink, IconSearch, IconShieldCheck, IconSparkles, IconTrendingDown, IconTrendingUp } from "@tabler/icons-react";
 import { FormEvent, useState } from "react";
-import { findPriceRange, PriceRangeResult } from "@/lib/mock-price";
+import { PriceRangeResult } from "@/lib/mock-price";
+import { findPriceRangeFromApi } from "@/lib/price-api";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR", maximumFractionDigits: 0 }).format(value);
@@ -100,7 +101,7 @@ export function PriceSearch() {
     const timer = window.setInterval(() => {
       setProgress((value) => Math.min(value + 18, 92));
     }, 140);
-    const next = await findPriceRange(item.trim());
+    const next = await findPriceRangeFromApi(item.trim());
     window.clearInterval(timer);
     setProgress(100);
     setResult(next);
