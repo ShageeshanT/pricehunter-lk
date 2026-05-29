@@ -4,6 +4,26 @@ Sri Lankan price research assistant for event budgets, procurement lists, and st
 
 PriceHunter LK takes an item list such as files, pens, wrist bands, plaques, stickers, refreshments, or OC tags, finds matching price candidates from configured sources, ranks them, and exports a clean budget comparison.
 
+
+## Main product flow
+
+PriceHunter LK is a universal item price range finder. It is not only for events or Young Protege budgets.
+
+User enters an item name. The app returns only:
+
+1. Cheapest site name, price, and URL
+2. Most expensive site name, price, and URL
+
+CLI:
+
+```bash
+pricehunter range "A4 file"
+```
+
+API endpoint:
+
+`POST /price-range` with JSON body `{ "item_name": "A4 file" }`
+
 ## MVP status
 
 Active build. The current model is local-first and deterministic so it can be tested reliably before live vendor search is added.

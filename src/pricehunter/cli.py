@@ -8,6 +8,7 @@ import typer
 from .engine import ResearchEngine
 from .exporters import sheets_rows, write_csv, write_json
 from .parser import parse_items_file
+from .ranges import PriceRangeFinder
 
 app = typer.Typer(help="PriceHunter LK research tools")
 
@@ -36,3 +37,17 @@ def research(
 
 if __name__ == "__main__":
     app()
+
+
+@app.command("range")
+def price_range(
+    item_name: str = typer.Argument(..., help="Item name to search"),
+    max_candidates: int = typer.Option(20, help="Maximum candidates to inspect"),
+) -> None:
+    result = PriceRangeFinder().find_range(item_name, max_candidates=max_candidates)
+    if not result.cheapest or not result.most_expensive:
+        typer.echo(f"No prices found for {result.item_name}")
+        raise typer.Exit(code=1)
+    typer.echo(f"Item: {result.item_name}")
+    typer.echo(f"Cheapest: {result.cheapest.site_name} | LKR {result.cheapest.price} | {result.cheapest.url or 'no url'}")
+    typer.echo(f"Most expensive: {result.most_expensive.site_name} | LKR {result.most_expensive.price} | {result.most_expensive.url or 'no url'}")

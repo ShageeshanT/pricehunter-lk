@@ -17,3 +17,11 @@ def test_research_endpoint():
     body = response.json()
     assert body["report"]["items"][0]["recommended"]["vendor"] == "AwardLab"
     assert body["report"]["grand_total"] == "5700"
+
+
+def test_price_range_endpoint():
+    response = client.post("/price-range", json={"item_name": "A4 file"})
+    assert response.status_code == 200
+    body = response.json()["result"]
+    assert body["cheapest"]["site_name"]
+    assert body["most_expensive"]["site_name"]

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from .engine import ResearchEngine
 from .exporters import sheets_rows
 from .models import ResearchRequest, ResearchResponse
+from .ranges import PriceRangeFinder, PriceRangeRequest, PriceRangeResponse
 
 app = FastAPI(title="PriceHunter LK", version="0.1.0")
 
@@ -26,3 +27,10 @@ def research_sheets_rows(request: ResearchRequest) -> dict[str, list[list[object
     engine = ResearchEngine()
     report = engine.research(request.items, max_candidates_per_item=request.max_candidates_per_item)
     return {"rows": sheets_rows(report)}
+
+
+@app.post("/price-range", response_model=PriceRangeResponse)
+def price_range(request: PriceRangeRequest) -> PriceRangeResponse:
+    finder = PriceRangeFinder()
+    result = finder.find_range(request.item_name, max_candidates=request.max_candidates)
+    return PriceRangeResponse(result=result)
